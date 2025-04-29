@@ -1,5 +1,5 @@
 # Author: Ali Pirani and Dhatri Badri 
-configfile: "config/confi.yaml"
+configfile: "config/config.yaml"
 
 import pandas as pd
 import os
@@ -18,7 +18,7 @@ include: "nanoQC_summary.smk"
 rule all:
     input:
         trimmed = expand("results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz", barcode=BARCODE, prefix=PREFIX),
-	nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
+        nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
         flye_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye.fasta", barcode=BARCODE, prefix=PREFIX),
         flye_circ_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta", barcode=BARCODE, prefix=PREFIX),
         medaka_out = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta", barcode=BARCODE, prefix=PREFIX),
@@ -32,7 +32,7 @@ rule all:
         
 rule filtlong:
     input:
-        longreads = config["long_reads"] + "/{barcode}"
+        longreads = config["long_reads"] + "/{barcode}.fastq.gz"
     output:
         trimmed = "results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz"
     #log:
@@ -43,12 +43,12 @@ rule filtlong:
     #    "Bioinformatics",
     #    "filtlong"
     shell:
-        "filtlong --min_length 1000 --keep_percent 95 {input.longreads}/*.fastq.gz  --mean_q_weight 10 --target_bases 500000000 | gzip > {output.trimmed}"
+        "filtlong --min_length 1000 --keep_percent 95 {input.longreads}  --mean_q_weight 10 --target_bases 500000000 | gzip > {output.trimmed}"
         
 rule nanoplot:
     input:
-        longreads = config["long_reads"] + "/{barcode}",
-        trimmed = lambda wildcards: expand(f"results/{wildcards.prefix}/filtlong/{wildcards.barcode}/{wildcards.barcode}.trimmed.fastq.gz"),
+        longreads = config["long_reads"] + "/{barcode}.fastq.gz",
+        trimmed = "results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz",
     output:
         nanoplot_preqc = "results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html"
     #log:
@@ -63,14 +63,14 @@ rule nanoplot:
     #    "nanoplot"
     shell:
         """
-        cat {input.longreads}/*.fastq.gz > /tmp/{params.prefix}.gz && 
+        cat {input.longreads} > /tmp/{params.prefix}.gz && 
         NanoPlot -o {params.outdir} -p {params.prefix}_preqc --tsv_stats --info_in_report --N50 --title {params.prefix}_preqc --fastq /tmp/{params.prefix}.gz && 
         NanoPlot -o {params.outdir} -p {params.prefix}_postqc --tsv_stats --info_in_report --N50 --title {params.prefix}_postqc --fastq {input.trimmed} && rm /tmp/{params.prefix}.gz 
         """
         
 rule flye:
     input:
-        trimmed = lambda wildcards: f"results/{wildcards.prefix}/filtlong/{wildcards.barcode}/{wildcards.barcode}.trimmed.fastq.gz"
+        trimmed = "results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz"
     output:
         assembly = "results/{prefix}/flye/{barcode}/{barcode}_flye.fasta",
     params:
@@ -82,7 +82,7 @@ rule flye:
     #log:
     #    "logs/{prefix}/flye/{barcode}/{barcode}_flye.log" # Flye has its own log
     singularity:
-        "docker://staphb/flye:2.9.4"
+        "docker://staphb/flye:2.9.5"
     #envmodules:
     #    "Bioinformatics",
     #    "flye"
@@ -116,10 +116,10 @@ rule flye_add_circ:
 
 rule medaka:
     input:
-        trimmed = lambda wildcards: expand(f"results/{wildcards.prefix}/filtlong/{wildcards.barcode}/{wildcards.barcode}.trimmed.fastq.gz"),
-        flye_assembly = lambda wildcards: expand(f"results/{wildcards.prefix}/flye/{wildcards.barcode}/{wildcards.barcode}_flye_circ.fasta"),
+        trimmed = "results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz",
+        flye_assembly = "results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta",
     output:
-        medaka_out = f"results/{{prefix}}/medaka/{{barcode}}/{{barcode}}_medaka.fasta",
+        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta",
     params:
         medaka_out_dir = "results/{prefix}/medaka/{barcode}",
         threads = config["threads"],
@@ -127,7 +127,7 @@ rule medaka:
     #log:
     #    "logs/{prefix}/medaka/{barcode}/{barcode}.log"
     singularity:
-        "docker://staphb/medaka:1.2.0"
+        "docker://staphb/medaka:1.2.0" # Keep older version of medaka since model used is not supported in the latest version i.e. medaka v2.0.1, 2025-04-29
     #envmodules:
     #    "Bioinformatics",
     #    "medaka",
@@ -137,12 +137,12 @@ rule medaka:
         medaka_consensus -i {input.trimmed} -d {input.flye_assembly} -o {params.medaka_out_dir} -t {params.threads} -m r941_min_high_g303 &&
         cp {params.medaka_out_dir}/consensus.fasta {params.medaka_out_dir}/{params.prefix}_medaka.fasta 
         """ 
-        
+
 rule prokka:
     input:
-        medaka = f"results/{{prefix}}/medaka/{{barcode}}/{{barcode}}_medaka.fasta"
+        medaka = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta"
     output:
-        medaka_annotation = f"results/{{prefix}}/prokka/{{barcode}}/{{barcode}}_medaka.gff",
+        medaka_annotation = "results/{prefix}/prokka/{barcode}/{barcode}_medaka.gff",
     params:
         threads = config["ncores"],
         prefix = "{barcode}",
@@ -160,18 +160,18 @@ rule prokka:
 
 rule quast:
     input:
-        flye_assembly = f"results/{{prefix}}/flye/{{barcode}}/{{barcode}}_flye_circ.fasta",
-        medaka_out = f"results/{{prefix}}/medaka/{{barcode}}/{{barcode}}_medaka.fasta",
+        flye_assembly = "results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta",
+        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta",
     output:
-        quast_out_flye = f"results/{{prefix}}/quast/{{barcode}}/{{barcode}}_flye/report.txt",
-        quast_out_medaka = f"results/{{prefix}}/quast/{{barcode}}/{{barcode}}_medaka/report.txt",
+        quast_out_flye = "results/{prefix}/quast/{barcode}/{barcode}_flye/report.txt",
+        quast_out_medaka = "results/{prefix}/quast/{barcode}/{barcode}_medaka/report.txt",
     params:
         threads = config["ncores"],
         quast_dir = directory("results/{prefix}/quast/{barcode}/{barcode}"),
     log:
         "logs/{prefix}/quast/{barcode}/{barcode}.log"
     singularity:
-        "docker://staphb/quast:5.2.0"
+        "docker://staphb/quast:5.3.0"
     #envmodules:
     #    "Bioinformatics",
     #    "quast"
@@ -183,8 +183,8 @@ rule quast:
   
 rule busco:
     input:
-        medaka_assembly = f"results/{{prefix}}/medaka/{{barcode}}/{{barcode}}_medaka.fasta",
-        flye_assembly = f"results/{{prefix}}/flye/{{barcode}}/{{barcode}}_flye_circ.fasta",
+        medaka_assembly = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta",
+        flye_assembly = "results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta",
     output:
         busco_flye_medaka_out = f"results/{{prefix}}/busco/{{barcode}}/{{barcode}}.medaka/busco_medaka.txt", 
         busco_flye_assembly_out = f"results/{{prefix}}/busco/{{barcode}}/{{barcode}}.flye_assembly/busco_flye_assembly.txt",     
@@ -196,7 +196,7 @@ rule busco:
     #log:
     #    "logs/{prefix}/busco/{barcode}/{barcode}.log" # BUSCO has it own logs folder
     singularity:
-        "docker://staphb/busco:5.7.1-prok-bacteria_odb10_2024-01-08"
+        "docker://staphb/busco:5.8.2-prok-bacteria_odb12_2024-11-14"
     #envmodules:
     #    "Bioinformatics",
     #    "busco"
@@ -211,13 +211,13 @@ rule busco:
      
 rule mlst:
     input:
-        medaka_out = lambda wildcards: expand(f"results/{wildcards.prefix}/medaka/{wildcards.barcode}/{wildcards.barcode}_medaka.fasta")
+        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta"
     output:
-        mlst_report = f"results/{{prefix}}/mlst/{{barcode}}/report.tsv",
+        mlst_report = "results/{prefix}/mlst/{barcode}/report.tsv",
     log:
         "logs/{prefix}/mlst/{barcode}/{barcode}.log"
     singularity:
-        "docker://staphb/mlst:2.23.0-2024-03"
+        "docker://staphb/mlst:2.23.0-2024-12-31"
     #envmodules:
     #    "Bioinformatics",
     #    "mlst"
@@ -226,16 +226,16 @@ rule mlst:
         
 rule skani:
     input:
-        medaka_out = lambda wildcards: expand(f"results/{wildcards.prefix}/medaka/{wildcards.barcode}/{wildcards.barcode}_medaka.fasta")
+        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta"
     output:
-        skani_output = f"results/{{prefix}}/skani/{{barcode}}/{{barcode}}_skani_output.txt"
+        skani_output = "results/{prefix}/skani/{barcode}/{barcode}_skani_output.txt"
     params:
         skani_ani_db = config["skani_db"],
         threads = 4
     log:
         "logs/{prefix}/skani/{barcode}/{barcode}.log"
     singularity:
-        "docker://staphb/skani:0.2.1"
+        "docker://staphb/skani:0.2.2"
     shell:
         "skani search {input.medaka_out} -d {params.skani_ani_db} -o {output.skani_output} -t {params.threads} 2>{log}"
        

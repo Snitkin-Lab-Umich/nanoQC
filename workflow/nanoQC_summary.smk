@@ -69,7 +69,7 @@ def nanoplot_report(outdir, prefix):
     # Rename columns in the DataFrame
     result_df.rename(columns=column_rename, inplace=True)
 
-    # Create the output directory if it doesn't exist
+    # Create the output directory if it does not exist
     os.makedirs(report_dir, exist_ok=True)
     
     # Define the output CSV file path
@@ -95,14 +95,14 @@ def quast_report(outdir, prefix):
         'Total length': 'total_length_medaka_quast'
     }
 
-    # List to hold all samples' data
+    # List to hold all samples data
     all_samples_data = []
 
     # Loop through each sample directory in the input directory
     for sample in os.listdir(quast_dir):
         sample_path = os.path.join(quast_dir, sample)
 
-        # Construct the path to the QUAST output directory (e.g., Lojek_G6C_1_medaka)
+        # Construct the path to the QUAST output directory 
         quast_output_dir = os.path.join(sample_path, f"{sample}_medaka")
         
         # Define the path to the transposed.tsv file
@@ -174,7 +174,7 @@ def skani_report(outdir, prefix):
                 first_row_df = skani_file[['ANI', 'Align_fraction_ref', 'Align_fraction_query', 'Ref_name']].iloc[:1]  # Extract the first row from specific columns
 
                 if first_row_df.empty:  # Check if the first row is empty
-                    first_row_df = pd.DataFrame({'sample_long_read': [sample_name],  # Create a DataFrame with NaN values and add the sample name
+                    first_row_df = pd.DataFrame({'sample_long_read': [sample_name],  # Create a DataFrame with Na values and add the sample name
                                                 'ANI': ["NAs"],
                                                 'Align_fraction_ref': ["NAs"],
                                                 'Align_fraction_query': ["NAs"],
@@ -258,10 +258,10 @@ rule concatenate_tool_outputs:
         quast_medaka_out = expand("results/{prefix}/quast/{barcode}/{barcode}_medaka/report.txt", prefix=PREFIX, barcode=BARCODE),
         nanoplot_out = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", prefix=PREFIX, barcode=BARCODE),
     output:
-        nanoplot_report = f"results/{{prefix}}/{{prefix}}_report/{{prefix}}_nanoplot_results.csv",
-        quast_report = f"results/{{prefix}}/{{prefix}}_report/{{prefix}}_quast_results.csv",
-        skani_report =f"results/{{prefix}}/{{prefix}}_report/{{prefix}}_Skani_report_final.csv",
-        mlst_report = f"results/{{prefix}}/{{prefix}}_report/{{prefix}}_mlst_results.csv",
+        nanoplot_report = "results/{prefix}/{prefix}_report/{prefix}_nanoplot_results.csv",
+        quast_report = "results/{prefix}/{prefix}_report/{prefix}_quast_results.csv",
+        skani_report = "results/{prefix}/{prefix}_report/{prefix}_Skani_report_final.csv",
+        mlst_report = "results/{prefix}/{prefix}_report/{prefix}_mlst_results.csv",
     params:
         prefix = "{prefix}",
         outdir = "results/{prefix}",
@@ -276,12 +276,12 @@ rule concatenate_tool_outputs:
 
 rule summary: 
     input:
-        nanoplot_report = lambda wildcards: expand(f"results/{wildcards.prefix}/{wildcards.prefix}_report/{wildcards.prefix}_nanoplot_results.csv"),
-        quast_report = lambda wildcards: expand(f"results/{wildcards.prefix}/{wildcards.prefix}_report/{wildcards.prefix}_quast_results.csv"),
-        skani_report =lambda wildcards: expand(f"results/{wildcards.prefix}/{wildcards.prefix}_report/{wildcards.prefix}_Skani_report_final.csv"),
-        mlst_report = lambda wildcards: expand(f"results/{wildcards.prefix}/{wildcards.prefix}_report/{wildcards.prefix}_mlst_results.csv"),
+        nanoplot_report = "results/{prefix}/{prefix}_report/{prefix}_nanoplot_results.csv",
+        quast_report = "results/{prefix}/{prefix}_report/{prefix}_quast_results.csv",
+        skani_report = "results/{prefix}/{prefix}_report/{prefix}_Skani_report_final.csv",
+        mlst_report = "results/{prefix}/{prefix}_report/{prefix}_mlst_results.csv",
     output:
-        summary_report = f"results/{{prefix}}/{{prefix}}_report/{{prefix}}_report.csv"
+        summary_report = "results/{prefix}/{prefix}_report/{prefix}_report.csv"
     params:
         prefix = "{prefix}",
         outdir = "results/{prefix}",
