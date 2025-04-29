@@ -18,7 +18,7 @@ include: "nanoQC_summary.smk"
 rule all:
     input:
         trimmed = expand("results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz", barcode=BARCODE, prefix=PREFIX),
-	    nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
+	nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
         flye_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye.fasta", barcode=BARCODE, prefix=PREFIX),
         flye_circ_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta", barcode=BARCODE, prefix=PREFIX),
         medaka_out = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta", barcode=BARCODE, prefix=PREFIX),
