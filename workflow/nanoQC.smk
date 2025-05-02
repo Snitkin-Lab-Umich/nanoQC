@@ -107,12 +107,22 @@ rule flye_add_circ:
     #    "logs/{prefix}/flye/{barcode}/{barcode}_flye_add_circ.log",
     run:
         shell("cp {params.assembly_dir}/{params.prefix}_flye.fasta {params.assembly_dir}/{params.prefix}_flye_circ.fasta")
-        assembly_info = pd.read_csv(f"{params.assembly_dir}/assembly_info.txt", sep='\t', header=0)
+        # Load and process the assembly info
+        assembly_info = pd.read_csv("%s/assembly_info.txt" % params.assembly_dir, sep='\t', header=0)
         assembly_info["circular"] = np.where(assembly_info["circ."] == "Y", "true", "false")
-        flye_assembly_circ = output.assembly
-        for index, row in assembly_info.iterrows():
-            circular = f"{row['#seq_name']};circular={row['circular']}"
-            shell(f"sed -i 's/\\<{row['#seq_name']}\\>/{circular}/g' {flye_assembly_circ}")
+        # Build a replacement dictionary: {original_seq_name: new_seq_name}
+        replacements = {
+            row['#seq_name']: f"{params.prefix}_{row['#seq_name']};circular={row['circular']}"
+            for _, row in assembly_info.iterrows()
+        }
+        with open(f"{params.assembly_dir}/{params.prefix}_flye.fasta", "r") as infile, open(f"{params.assembly_dir}/{params.prefix}_flye_circ.fasta", "w") as outfile:
+            for line in infile:
+                if line.startswith(">"):
+                    seq_name = line[1:].strip()
+                    new_name = replacements.get(seq_name, seq_name)
+                    outfile.write(f">{new_name}\n")
+                else:
+                    outfile.write(line)
 
 rule medaka:
     input:
