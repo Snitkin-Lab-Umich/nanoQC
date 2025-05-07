@@ -200,8 +200,8 @@ rule busco:
         busco_flye_assembly_out = f"results/{{prefix}}/busco/{{barcode}}/{{barcode}}.flye_assembly/busco_flye_assembly.txt",     
     params:
         busco_outpath = f"results/{{prefix}}/busco/{{barcode}}/{{barcode}}",
-        medaka_busco_out = f"short_summary.specific.bacteria_odb10.{{barcode}}.medaka.txt",
-        flye_assembly_busco_out = f"short_summary.specific.bacteria_odb10.{{barcode}}.flye_assembly.txt",
+        medaka_busco_out = f"short_summary.specific.bacteria_odb12.{{barcode}}.medaka.txt",
+        flye_assembly_busco_out = f"short_summary.specific.bacteria_odb12.{{barcode}}.flye_assembly.txt",
         threads = config["ncores"],
     #log:
     #    "logs/{prefix}/busco/{barcode}/{barcode}.log" # BUSCO has it own logs folder
@@ -212,10 +212,10 @@ rule busco:
     #    "busco"
     shell:
         """ 
-        busco -f -i {input.medaka_assembly} -m genome -l bacteria_odb10 -o {params.busco_outpath}.medaka && 
+        busco -f -i {input.medaka_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.medaka && 
         cp {params.busco_outpath}.medaka/{params.medaka_busco_out} {params.busco_outpath}.medaka/busco_medaka.txt &&    
         
-        busco -f -i {input.flye_assembly} -m genome -l bacteria_odb10 -o {params.busco_outpath}.flye_assembly && 
+        busco -f -i {input.flye_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.flye_assembly && 
         cp {params.busco_outpath}.flye_assembly/{params.flye_assembly_busco_out} {params.busco_outpath}.flye_assembly/busco_flye_assembly.txt 
         """
      
