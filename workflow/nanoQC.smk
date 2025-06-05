@@ -21,6 +21,7 @@ rule all:
         nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
         flye_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye.fasta", barcode=BARCODE, prefix=PREFIX),
         flye_circ_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta", barcode=BARCODE, prefix=PREFIX),
+        medaka_wo_circ = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka_wo_circ.fasta",  barcode=BARCODE, prefix=PREFIX),
         medaka_out = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta", barcode=BARCODE, prefix=PREFIX),
         prokka_out = expand("results/{prefix}/prokka/{barcode}/{barcode}_medaka.gff", barcode=BARCODE, prefix=PREFIX),
         quast_out = expand("results/{prefix}/quast/{barcode}/{barcode}_flye/report.txt", barcode=BARCODE, prefix=PREFIX),
@@ -123,15 +124,17 @@ rule flye_add_circ:
                     outfile.write(f">{new_name}\n")
                 else:
                     outfile.write(line)
-
+       
 rule medaka:
     input:
         trimmed = "results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz",
         flye_assembly = "results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta",
     output:
-        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta",
+        medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta", # Note: medaka_out is the final assembly with circularization info
+        medaka_out_wo_circ = "results/{prefix}/medaka/{barcode}/{barcode}_medaka_wo_circ.fasta", # Note: medaka_out_wo_circ is used to generate the medaka assembly without circularization
     params:
         medaka_out_dir = "results/{prefix}/medaka/{barcode}",
+        medaka_out_dir_wo_circ = "results/{prefix}/medaka/{barcode}/wo_circ",
         threads = config["threads"],
         prefix = f"{{barcode}}",
     #log:
@@ -146,11 +149,16 @@ rule medaka:
         """
         medaka_consensus -i {input.trimmed} -d {input.flye_assembly} -o {params.medaka_out_dir} -t {params.threads} -m r941_min_high_g303 &&
         cp {params.medaka_out_dir}/consensus.fasta {params.medaka_out_dir}/{params.prefix}_medaka.fasta 
+        
+        cp {params.medaka_out_dir}/{params.prefix}_medaka.fasta  {output.medaka_out_wo_circ} 
+        sed -i 's/;.*//' {output.medaka_out_wo_circ}
+        
         """ 
 
 rule prokka:
     input:
-        medaka = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta"
+        medaka_wo_circ = "results/{prefix}/medaka/{barcode}/{barcode}_medaka_wo_circ.fasta", # Note: medaka_wo_circ is used to generate the prokka annotation without circularization
+        # medaka = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta" # Note: medaka is used to generate the prokka annotation with circularization
     output:
         medaka_annotation = "results/{prefix}/prokka/{barcode}/{barcode}_medaka.gff",
     params:
@@ -166,7 +174,7 @@ rule prokka:
     #    "Bioinformatics",
     #    "prokka"
     shell:
-        "prokka --force --kingdom Bacteria --rfam --strain {params.prefix} -outdir {params.prokka_dir} -prefix {params.prefix}_medaka {input.medaka} &>{log}"
+        "prokka --force --kingdom Bacteria --rfam --strain {params.prefix} -outdir {params.prokka_dir} -prefix {params.prefix}_medaka {input.medaka_wo_circ} &>{log}"
 
 rule quast:
     input:
@@ -211,14 +219,40 @@ rule busco:
     #    "Bioinformatics",
     #    "busco"
     shell:
-        """ 
-        busco -f -i {input.medaka_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.medaka && 
-        cp {params.busco_outpath}.medaka/{params.medaka_busco_out} {params.busco_outpath}.medaka/busco_medaka.txt &&    
-        
-        busco -f -i {input.flye_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.flye_assembly && 
-        cp {params.busco_outpath}.flye_assembly/{params.flye_assembly_busco_out} {params.busco_outpath}.flye_assembly/busco_flye_assembly.txt 
         """
-     
+        set -e
+
+        # Run BUSCO on medaka assembly with retry
+        for i in {{1..2}}; do
+            echo "Attempt $i: Running BUSCO on medaka assembly"
+            busco -f -i {input.medaka_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.medaka && break || echo "BUSCO medaka attempt $i failed"
+            sleep 10
+        done
+
+        # Check if BUSCO medaka succeeded
+        if [ ! -f {params.busco_outpath}.medaka/{params.medaka_busco_out} ]; then
+            echo "BUSCO medaka failed after 2 attempts" >&2
+            exit 1
+        fi
+
+        cp {params.busco_outpath}.medaka/{params.medaka_busco_out} {params.busco_outpath}.medaka/busco_medaka.txt
+
+        # Run BUSCO on flye assembly with retry
+        for i in {{1..2}}; do
+            echo "Attempt $i: Running BUSCO on flye assembly"
+            busco -f -i {input.flye_assembly} -m genome -l bacteria_odb12 -o {params.busco_outpath}.flye_assembly && break || echo "BUSCO flye attempt $i failed"
+            sleep 10
+        done
+
+        # Check if BUSCO flye succeeded
+        if [ ! -f {params.busco_outpath}.flye_assembly/{params.flye_assembly_busco_out} ]; then
+            echo "BUSCO flye failed after 2 attempts" >&2
+            exit 1
+        fi
+
+        cp {params.busco_outpath}.flye_assembly/{params.flye_assembly_busco_out} {params.busco_outpath}.flye_assembly/busco_flye_assembly.txt
+        """
+    
 rule mlst:
     input:
         medaka_out = "results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta"
@@ -249,4 +283,3 @@ rule skani:
     shell:
         "skani search {input.medaka_out} -d {params.skani_ani_db} -o {output.skani_output} -t {params.threads} 2>{log}"
        
-
