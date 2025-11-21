@@ -1,0 +1,44 @@
+# Author: Ali Pirani and Dhatri Badri 
+configfile: "config/config.yaml"
+
+import pandas as pd
+import os
+import numpy as np
+
+samples_df = pd.read_csv(config["samples"])
+BARCODE = list(samples_df['barcode_id'])
+PREFIX = config["prefix"]
+
+if not os.path.exists("results/"):
+    os.system("mkdir %s" % "results/")
+
+# Snakefile to generate summary report
+# include: "nanoQC_summary.smk"
+
+rule all:
+    input:
+        trimmed = expand("results/{prefix}/filtlong/{barcode}/{barcode}.trimmed.fastq.gz", barcode=BARCODE, prefix=PREFIX),
+        nanoplot = expand("results/{prefix}/nanoplot/{barcode}/{barcode}_preqcNanoPlot-report.html", barcode=BARCODE, prefix=PREFIX),
+        flye_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye.fasta", barcode=BARCODE, prefix=PREFIX),
+        flye_circ_assembly = expand("results/{prefix}/flye/{barcode}/{barcode}_flye_circ.fasta", barcode=BARCODE, prefix=PREFIX),
+        medaka_wo_circ = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka_wo_circ.fasta",  barcode=BARCODE, prefix=PREFIX),
+        medaka_out = expand("results/{prefix}/medaka/{barcode}/{barcode}_medaka.fasta", barcode=BARCODE, prefix=PREFIX),
+        prokka_out = expand("results/{prefix}/prokka/{barcode}/{barcode}_medaka.gff", barcode=BARCODE, prefix=PREFIX),
+        quast_out = expand("results/{prefix}/quast/{barcode}/{barcode}_flye/report.txt", barcode=BARCODE, prefix=PREFIX),
+        busco_out = expand("results/{prefix}/busco/{barcode}/{barcode}.medaka/busco_medaka.txt", barcode=BARCODE, prefix=PREFIX),
+        mlst_out = expand("results/{prefix}/mlst/{barcode}/report.tsv", barcode=BARCODE, prefix=PREFIX),
+        skani_out = expand("results/{prefix}/skani/{barcode}/{barcode}_skani_output.txt", barcode=BARCODE, prefix=PREFIX),
+        nanoplot_report = expand("results/{prefix}/{prefix}_report/{prefix}_nanoplot_results.csv", barcode=BARCODE, prefix=PREFIX),
+        summary_report = expand("results/{prefix}/{prefix}_report/{prefix}_report.csv", prefix=PREFIX)
+
+################# rules #################
+include: "rules/filtlong.smk"
+include: "rules/nanoplot.smk"
+include: "rules/flye.smk"
+include: "rules/medaka.smk"
+include: "rules/prokka.smk"
+include: "rules/quast.smk"
+include: "rules/busco.smk"
+include: "rules/mlst.smk"
+include: "rules/skani.smk"
+include: "rules/summary_report.smk"
